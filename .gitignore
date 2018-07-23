@@ -1,0 +1,10 @@
+*.tar.gz
+*.pyc
+*.zip
+training/
+training
+*.pth.tar
+*.png
+logs/*
+detection_dataset/*
+.idea/*
