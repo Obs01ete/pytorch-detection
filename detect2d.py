@@ -7,6 +7,7 @@ import time
 import pickle
 import argparse
 import numpy as np
+from termcolor import colored
 
 import torch
 import torch.utils.data as data
@@ -67,9 +68,10 @@ def prepare_dataset(dataset_dir):
     if os.path.exists(dataset_dir):
         return
 
-    os.makedirs(dataset_dir)
-
     image_list = list_all_images()
+    assert len(image_list) > 0
+
+    os.makedirs(dataset_dir)
 
     train_val_split(image_list, dataset_dir)
 
@@ -124,7 +126,6 @@ def clip_gradient(model, clip_val):
         if p.grad is not None:
             mv = torch.max(torch.abs(p.grad.data))
             if mv > clip_val:
-                from termcolor import colored
                 print(colored("Grad max {:.3f}".format(mv), "red"))
             p.grad.data.clamp_(-clip_val, clip_val)
 
@@ -169,7 +170,8 @@ class Trainer():
         else:
             model_dp = model
 
-        model_dp.cuda()
+        if torch.cuda.is_available():
+            model_dp.cuda()
 
         self.model = model
         self.model_dp = model_dp
@@ -223,8 +225,9 @@ class Trainer():
     @staticmethod
     def wrap_sample_with_variable(input, target, **kwargs):
         """Wrap tensor with Variable and push to cuda."""
-        input = input.cuda()
-        target = [t.cuda() for t in target]
+        if torch.cuda.is_available():
+            input = input.cuda()
+            target = [t.cuda() for t in target]
         input_var = torch.autograd.Variable(input, **kwargs)
         target_var = [torch.autograd.Variable(t, **kwargs) for t in target]
         return input_var, target_var

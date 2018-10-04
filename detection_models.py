@@ -150,8 +150,11 @@ class MultiboxLayers(nn.Module):
         anchors_cxcywh = np.stack(anchor_list, axis=0)
         anchors_cxcywh = torch.from_numpy(anchors_cxcywh)
         self.anchors_cxcywh = anchors_cxcywh
-        self.anchors_cxcywh_cuda = anchors_cxcywh.clone().cuda() # duplicate for cuda for speed-up
         pass
+
+    def cuda(self, **kwargs):
+        super().cuda(kwargs)
+        self.anchors_cxcywh_cuda = self.anchors_cxcywh.clone().cuda() # duplicate for cuda for speed-up
 
     def _reshape_and_concat(self, encoded_branches):
         """Transform separate branch outputs to a joint tensor."""
@@ -221,8 +224,11 @@ class MultiboxLayers(nn.Module):
         pred_class = encoded_prediction[:, :, 4:].contiguous()
         assert pred_class.shape[2] == 1 + self.num_classes
 
-        target_xywh = encoded_target[0].cuda()
-        target_class_indexes = encoded_target[1].cuda()
+        target_xywh = encoded_target[0]
+        target_class_indexes = encoded_target[1]
+        if torch.cuda.is_available():
+            target_xywh = target_xywh.cuda()
+            target_class_indexes = target_class_indexes.cuda()
 
         # determine positives
         bbox_matches_byte = target_class_indexes > 0
