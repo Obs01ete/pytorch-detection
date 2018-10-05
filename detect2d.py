@@ -3,6 +3,7 @@
 # Some code is borrowed from pytorch examples and torchvision.
 
 import os
+import sys
 import time
 import pickle
 import argparse
@@ -481,8 +482,7 @@ class Trainer():
 
 
 
-
-if __name__ == "__main__":
+def main():
     """Entry point."""
 
     dataset_dir = 'detection_dataset'
@@ -512,3 +512,15 @@ if __name__ == "__main__":
         print('Finished training. Done!')
 
     pass
+
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
