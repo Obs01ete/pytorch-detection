@@ -111,13 +111,13 @@ class ResNet(nn.Module):
         self.avgpool = nn.AvgPool2d(int(math.ceil(input_size/32)))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+        #         m.weight.data.normal_(0, math.sqrt(2. / n))
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         m.weight.data.fill_(1)
+        #         m.bias.data.zero_()
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -156,27 +156,27 @@ class ResNet(nn.Module):
 
 class ResNetBackbone(nn.Module):
 
-    def __init__(self, block, layers):
-        self.inplanes = 64
+    def __init__(self, block, layers, channel_multiplier=64):
+        self.inplanes = channel_multiplier
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.Conv2d(3, channel_multiplier, kernel_size=7, stride=2, padding=3,
                                bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        self.bn1 = nn.BatchNorm2d(channel_multiplier)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, channel_multiplier*1, layers[0])
+        self.layer2 = self._make_layer(block, channel_multiplier*2, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, channel_multiplier*4, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, channel_multiplier*8, layers[3], stride=2)
         # Dmitry Khizbullin: remove classification head
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+        #         m.weight.data.normal_(0, math.sqrt(2. / n))
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         m.weight.data.fill_(1)
+        #         m.bias.data.zero_()
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None

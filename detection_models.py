@@ -374,7 +374,8 @@ class SingleShotDetector(nn.Module):
         self.labelmap = labelmap
 
         # Use Resnet-XX as a backbone
-        self.backbone = models.resnet34_backbone(pretrained=True)
+        # self.backbone = models.resnet34_backbone(pretrained=True)
+        self.backbone = models.resnet34_backbone(pretrained=False, channel_multiplier=16)
 
         self.backbone.eval()
 

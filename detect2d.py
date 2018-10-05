@@ -142,7 +142,7 @@ class Trainer():
         """
 
         self.epochs_to_train = 1000
-        self.base_learning_rate = 0.01
+        self.base_learning_rate = 0.05 # 0.01
         self.lr_scales = (
             (0, 0.1), # perform soft warm-up to reduce chance of divergence
             (2, 0.2),
