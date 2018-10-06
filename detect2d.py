@@ -229,9 +229,7 @@ class Trainer():
         if torch.cuda.is_available():
             input = input.cuda()
             target = [t.cuda() for t in target]
-        input_var = torch.autograd.Variable(input, **kwargs)
-        target_var = [torch.autograd.Variable(t, **kwargs) for t in target]
-        return input_var, target_var
+        return input, target
 
 
     def train_epoch(self):
@@ -373,12 +371,13 @@ class Trainer():
 
             input, target, names, pil_images, annotations, stats = sample
 
-            input_var, target_var = self.wrap_sample_with_variable(input, target, volatile=True)
+            with torch.no_grad():
+                input_var, target_var = self.wrap_sample_with_variable(input, target, volatile=True)
 
-            # Compute output tensor of the network
-            encoded_tensor = self.model_dp(input_var)
-            # Compute loss for logging only
-            _, loss_details = self.model.get_loss(encoded_tensor, target_var)
+                # Compute output tensor of the network
+                encoded_tensor = self.model_dp(input_var)
+                # Compute loss for logging only
+                _, loss_details = self.model.get_loss(encoded_tensor, target_var)
 
             # Save annotation and detection results for further AP calculation
             class_grouped_anno = self.to_class_grouped_anno(annotations)

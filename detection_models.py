@@ -231,19 +231,19 @@ class MultiboxLayers(nn.Module):
         bbox_matches_byte = target_class_indexes > 0
         bbox_matches = bbox_matches_byte.long()
         batch_size = bbox_matches.size(0)
-        num_matches = bbox_matches.sum().data[0]
+        num_matches = bbox_matches.sum().item()
 
         # bbox loss only for positives
         bbox_mask = bbox_matches_byte.unsqueeze(2).expand_as(pred_xywh)
         bbox_denom = max(num_matches, 1)
-        loc_loss = F.smooth_l1_loss(pred_xywh[bbox_mask], target_xywh[bbox_mask], size_average=False) / bbox_denom
+        loc_loss = F.smooth_l1_loss(pred_xywh[bbox_mask], target_xywh[bbox_mask], reduction='sum') / bbox_denom
 
         pred_class_flat = pred_class.view(-1, pred_class.shape[-1])
 
         target_class_indexes_flat = target_class_indexes.view(-1)
 
         # calculate cls losses for positives and negative without reduction
-        cls_loss_vec = F.cross_entropy(pred_class_flat, target_class_indexes_flat, reduce=False)
+        cls_loss_vec = F.cross_entropy(pred_class_flat, target_class_indexes_flat, reduction='none')
         cls_loss_vec = cls_loss_vec.view(batch_size, -1)
 
         if True:
@@ -267,7 +267,7 @@ class MultiboxLayers(nn.Module):
             cls_loss_batch_total = contributors_to_loss.sum(dim=1)
             cls_loss_total = cls_loss_batch_total.sum()
             num_bbox_matches_total = num_bbox_matches.sum()
-            cls_denom = max(num_bbox_matches_total.float().data[0], virtual_min_positive_matches)
+            cls_denom = max(num_bbox_matches_total.float().item(), virtual_min_positive_matches)
             cls_loss = cls_loss_total / cls_denom
             pass
         else:
@@ -283,7 +283,7 @@ class MultiboxLayers(nn.Module):
             "cls_loss": cls_loss,
             "loss": loss
         }
-        loss_details = {name: float(var.data.cpu().numpy()[0]) for (name, var) in loss_details.items()}
+        loss_details = {name: float(var.item()) for (name, var) in loss_details.items()}
 
         return loss, loss_details
 

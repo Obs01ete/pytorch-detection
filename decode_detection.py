@@ -50,12 +50,14 @@ class Detect():
                 if scores.dim() == 0:
                     continue
                 l_mask = c_mask.unsqueeze(1).expand_as(decoded_boxes)
-                boxes = decoded_boxes[l_mask].view(-1, 4)
-                # idx of highest scoring and non-overlapping boxes per class
-                ids, count = nms(boxes, scores, self.nms_thresh, self.top_k)
-                output[i, cl, :count] = \
-                    torch.cat((scores[ids[:count]].unsqueeze(1),
-                               boxes[ids[:count]]), 1)
+                thresholded_boxes = decoded_boxes[l_mask]
+                if len(thresholded_boxes) > 0:
+                    boxes = thresholded_boxes.view(-1, 4)
+                    # idx of highest scoring and non-overlapping boxes per class
+                    ids, count = nms(boxes, scores, self.nms_thresh, self.top_k)
+                    output[i, cl, :count] = \
+                        torch.cat((scores[ids[:count]].unsqueeze(1),
+                                   boxes[ids[:count]]), 1)
         flt = output.contiguous().view(batch_size, -1, 5)
         _, idx = flt[:, :, 0].sort(1, descending=True)
         _, rank = idx.sort(1)
