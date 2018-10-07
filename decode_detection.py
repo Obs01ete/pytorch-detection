@@ -34,6 +34,8 @@ class Detect():
         batch_size = loc_data.size(0)
         num_priors = prior_data.size(0)
         output = torch.zeros(batch_size, self.num_classes, self.top_k, 5)
+        if loc_data.is_cuda:
+            output = output.cuda()
         conf_preds = conf_data.transpose(2, 1) # group by classes
 
         # Decode predictions into bboxes.

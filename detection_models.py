@@ -150,11 +150,8 @@ class MultiboxLayers(nn.Module):
         anchors_cxcywh = np.stack(anchor_list, axis=0)
         anchors_cxcywh = torch.from_numpy(anchors_cxcywh)
         self.anchors_cxcywh = anchors_cxcywh
+        self.register_buffer("anchors_cxcywh_cuda", anchors_cxcywh.clone())
         pass
-
-    def cuda(self, **kwargs):
-        super().cuda(kwargs)
-        self.anchors_cxcywh_cuda = self.anchors_cxcywh.clone().cuda() # duplicate for cuda for speed-up
 
     def _reshape_and_concat(self, encoded_branches):
         """Transform separate branch outputs to a joint tensor."""
@@ -299,7 +296,7 @@ class MultiboxLayers(nn.Module):
             left-top-right-bottom (LTRB) format.
         """
 
-        encoded_tensor = encoded_tensor.cpu()
+        #encoded_tensor = encoded_tensor.cpu()
 
         loc_var = encoded_tensor[:, :, :4]
         conf_var = encoded_tensor[:, :, 4:]
@@ -309,14 +306,11 @@ class MultiboxLayers(nn.Module):
 
         conf_data = conf_data[:, :, 1:].contiguous() # throw away BG row after softmax
 
-        if encoded_tensor.is_cuda:
-            anchors_cxcywh = self.anchors_cxcywh_cuda
-        else:
-            anchors_cxcywh = self.anchors_cxcywh
+        anchors_cxcywh = self.anchors_cxcywh_cuda
 
         detections = self.detect_functor.forward(loc_data, conf_data, anchors_cxcywh, threshold)
 
-        detections = detections.numpy()
+        detections = detections.cpu().numpy()
 
         det_varsize = []
         for s in detections:
@@ -417,7 +411,6 @@ class SingleShotDetector(nn.Module):
         if False:
             # probe the whole net
             encoded_tensor = self.forward(input_tensor)
-            #encoded_tensor.cuda()
             detections = self.get_detections(encoded_tensor, threshold=0.15)
 
         # export model
