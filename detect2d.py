@@ -12,6 +12,7 @@ from termcolor import colored
 
 import torch
 import torch.utils.data as data
+import torchvision
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 
@@ -140,6 +141,9 @@ class Trainer():
         Args:
             dataset_dir: directory with detection dataset
         """
+
+        torchvision.set_image_backend('accimage')
+        print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
         self.epochs_to_train = 1000
         self.base_learning_rate = 0.05 # 0.01
@@ -475,8 +479,11 @@ class Trainer():
 
         # self.validate(do_dump_images=do_dump_images, save_checkpoint=False)
 
-        for epoch in range(self.epochs_to_train):
-            self.train_epoch()
+        num_epochs = 0
+        while num_epochs < self.epochs_to_train:
+            for i in range(4):
+                self.train_epoch()
+                num_epochs += 1
             self.validate(do_dump_images=do_dump_images, save_checkpoint=True)
         pass
 
