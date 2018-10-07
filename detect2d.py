@@ -33,7 +33,7 @@ def list_all_images():
     print('Start generation of a file list')
 
     names = []
-    dir = 'training/image_2'
+    dir = 'kitti/training/image_2'
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in sorted(fnames):
             if is_image_file(fname):
@@ -448,8 +448,11 @@ class Trainer():
 
     def load_checkpoint(self, checkpoint_path):
         """Load spesified snapshot to the network."""
-        checkpoint = torch.load(checkpoint_path)
-        self.model.load_state_dict(checkpoint['state_dict'])
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path)
+            self.model.load_state_dict(checkpoint['state_dict'])
+        else:
+            print("Checkpoint not found:", checkpoint_path)
         pass
 
 

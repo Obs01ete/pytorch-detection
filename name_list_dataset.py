@@ -33,7 +33,7 @@ class NameListDataset(data.Dataset):
         self.build_target = build_target
 
         self._is_pil_image = True
-        self.data_path = 'training/'
+        self.data_path = 'kitti/training/'
         self.image_path = os.path.join(self.data_path, 'image_2')
         self.velo_path = os.path.join(self.data_path, 'velodyne')
         self.calib_path = os.path.join(self.data_path, 'calib')
