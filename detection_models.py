@@ -371,7 +371,9 @@ class SingleShotDetector(nn.Module):
 
         # Use Resnet-XX as a backbone
         # self.backbone = models.resnet34_backbone(pretrained=True)
-        self.backbone = models.resnet34_backbone(pretrained=False, channel_multiplier=16)
+        # self.backbone = models.resnet34_backbone(pretrained=False, channel_multiplier=16)
+        channel_multiplier = 64 # 32
+        self.backbone = models.resnet34_backbone(pretrained=False, channel_config=(1, 2, 2, 2), channel_multiplier=channel_multiplier)
 
         self.backbone.eval()
 
@@ -383,7 +385,8 @@ class SingleShotDetector(nn.Module):
         backbone_last_channels = backbone_last.shape[1]
 
         # create additional layers
-        extras_config = [512, 256, 256]
+        # extras_config = [512, 256, 256]
+        extras_config = [v*channel_multiplier for v in (2, 2, 2)]
         self.extra_layers = ExtraLayers(extras_config, backbone_last_channels)
         self.extra_layers.eval()
 

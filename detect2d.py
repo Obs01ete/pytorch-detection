@@ -474,7 +474,7 @@ class Trainer():
 
         do_dump_images = False
 
-        self.validate(do_dump_images=do_dump_images, save_checkpoint=False)
+        # self.validate(do_dump_images=do_dump_images, save_checkpoint=False)
 
         for epoch in range(self.epochs_to_train):
             self.train_epoch()
