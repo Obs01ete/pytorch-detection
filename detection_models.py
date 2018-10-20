@@ -1,13 +1,14 @@
 import os
 import sys
 import math
+import importlib
 import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import imagenet_models as models
+# import imagenet_models as models
 import box_utils
 import decode_detection
 
@@ -342,9 +343,8 @@ class MultiboxLayers(nn.Module):
         sys.path.insert(0, os.path.join("~/git/pytorch2caffe/"))
         sys.path.insert(0, "~/git/caffe_ssd_py3/build/install/python/")
         from pytorch2caffe import pytorch2caffe
-        from torch.autograd import Variable
 
-        input_var = Variable(torch.rand(1, 3, int(input_resolution[0]), int(input_resolution[1])))
+        input_var = torch.rand(1, 3, int(input_resolution[0]), int(input_resolution[1]))
         encoded_var = self(input_var)
         pytorch2caffe(
             input_var, encoded_var,
@@ -354,7 +354,7 @@ class MultiboxLayers(nn.Module):
 
 
 class SingleShotDetector(nn.Module):
-    def __init__(self, input_resolution, labelmap):
+    def __init__(self, backbone_specs, input_resolution, labelmap):
         """
         Ctor.
 
@@ -369,11 +369,12 @@ class SingleShotDetector(nn.Module):
 
         self.labelmap = labelmap
 
+        backbone_module = importlib.import_module(backbone_specs['backbone_module'])
+
         # Use Resnet-XX as a backbone
-        # self.backbone = models.resnet34_backbone(pretrained=True)
-        # self.backbone = models.resnet34_backbone(pretrained=False, channel_multiplier=16)
-        channel_multiplier = 64 # 32
-        self.backbone = models.resnet34_backbone(pretrained=False, channel_config=(1, 2, 2, 2), channel_multiplier=channel_multiplier)
+        backbone_create_func = getattr(backbone_module, backbone_specs['backbone_function'])
+        self.backbone = backbone_create_func(**backbone_specs['kwargs'])
+        channel_multiplier = backbone_specs['head_channel_multiplier']
 
         self.backbone.eval()
 

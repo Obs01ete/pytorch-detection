@@ -7,6 +7,7 @@ import sys
 import time
 import pickle
 import argparse
+import importlib
 import numpy as np
 from termcolor import colored
 
@@ -25,57 +26,6 @@ from extended_collate import extended_collate
 import image_anno_transforms
 import average_precision
 from debug_tools import dump_images
-
-
-def list_all_images():
-    """Scan over all samples in the dataset"""
-
-    print('Start generation of a file list')
-
-    names = []
-    dir = 'kitti/training/image_2'
-    for root, _, fnames in sorted(os.walk(dir)):
-        for fname in sorted(fnames):
-            if is_image_file(fname):
-                path = os.path.join(root, fname)
-                nameonly = os.path.splitext(fname)[0]
-                names.append(nameonly)
-
-    print('End generation of a file list')
-
-    return names
-
-
-def train_val_split(image_list, dataset_dir, fraction_for_val=0.05):
-    """Prepare file lists for training and validation."""
-
-    train_num = int(len(image_list) * (1.0 - fraction_for_val))
-    train_list = image_list[:train_num]
-    val_list = image_list[train_num:]
-
-    def save_object(name, obj):
-        path = os.path.join(dataset_dir, name + '.pkl')
-        with open(path, 'wb') as output:
-            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
-
-    save_object('train_list', train_list)
-    save_object('val_list', val_list)
-
-    pass
-
-
-def prepare_dataset(dataset_dir):
-    """Prepare dataset for training the detector. Done only once."""
-
-    if os.path.exists(dataset_dir):
-        return
-
-    image_list = list_all_images()
-    assert len(image_list) > 0
-
-    os.makedirs(dataset_dir)
-
-    train_val_split(image_list, dataset_dir)
 
 
 def default_input_traits():
@@ -138,7 +88,6 @@ class Config(object):
             self.__dict__[n] = v
 
 def import_config_by_name(config_name):
-    import importlib
     config_module = importlib.import_module('configs.' + config_name)
     cfg_dict = {key: value for key, value in config_module.__dict__.items() if
                 not (key.startswith('__') or key.startswith('_'))}
@@ -152,10 +101,17 @@ class Trainer():
     def __init__(self, config_name):
         """
         Args:
-            dataset_dir: directory with detection dataset
+            config_name: name of a configuration module to import
         """
 
+        print('Config name: {}'.format(config_name))
+
         self.cfg = import_config_by_name(config_name)
+        print(self.cfg)
+
+        print('Start preparing dataset')
+        self.prepare_dataset()
+        print('Finished preparing dataset')
 
         print("torch.__version__=", torch.__version__)
         torchvision.set_image_backend('accimage')
@@ -184,7 +140,7 @@ class Trainer():
 
         labelmap = NameListDataset.getLabelmap()
 
-        model = detection_models.SingleShotDetector(input_traits['resolution'], labelmap)
+        model = detection_models.SingleShotDetector(self.cfg.backbone_specs, input_traits['resolution'], labelmap)
         if True:
             model_dp = torch.nn.DataParallel(model)
             cudnn.benchmark = True
@@ -201,7 +157,7 @@ class Trainer():
         map_to_network_input = image_anno_transforms.MapImageAndAnnoToInputWindow(input_traits['resolution'])
 
         def load_list(name):
-            path = os.path.join(self.cfg.dataset_dir, name + '.pkl')
+            path = os.path.join(self.cfg.train_val_split_dir, name + '.pkl')
             with open(path, 'rb') as input:
                 return pickle.load(input)
 
@@ -240,11 +196,25 @@ class Trainer():
 
         self.writer = SummaryWriterOpt(enabled=True)
 
+        self.run_dir = os.path.join('runs', self.cfg.run_name)
+        os.makedirs(self.run_dir, exist_ok=True)
+        self.snapshot_path = os.path.join(self.run_dir, self.cfg.run_name + '.pth.tar')
+
         pass
 
 
     def prepare_dataset(self):
-        prepare_dataset(self.cfg.dataset_dir)
+        """Prepare dataset for training the detector. Done only once."""
+
+        if os.path.exists(self.cfg.train_val_split_dir):
+            return
+
+        image_list = NameListDataset.list_all_images()
+        assert len(image_list) > 0
+
+        os.makedirs(self.cfg.train_val_split_dir)
+
+        NameListDataset.train_val_split(image_list, self.cfg.train_val_split_dir)
 
 
     @staticmethod
@@ -284,7 +254,7 @@ class Trainer():
                 momentum=0.9,
                 weight_decay=0.0001)
 
-        detection_train_dump_dir = 'detection_train_dump'
+        detection_train_dump_dir = os.path.join(self.run_dir, 'detection_train_dump')
         clean_dir(detection_train_dump_dir)
 
         end = time.time()
@@ -380,7 +350,7 @@ class Trainer():
         # switch to evaluate mode
         self.model.eval()
 
-        detection_val_dump_dir = 'detection_val_dump'
+        detection_val_dump_dir = os.path.join(self.run_dir, 'detection_val_dump')
         if do_dump_images:
             clean_dir(detection_val_dump_dir)
 
@@ -457,17 +427,20 @@ class Trainer():
         if save_checkpoint:
             # Remember best accuracy and save checkpoint
             is_best = performance_metric > self.best_performance_metric
+
             if is_best:
                 self.best_performance_metric = performance_metric
                 torch.save(
                     {'state_dict': self.model.state_dict()},
-                    'detection_2d_best.pth.tar')
+                    self.snapshot_path)
 
         pass
 
 
     def load_checkpoint(self, checkpoint_path):
         """Load spesified snapshot to the network."""
+        if checkpoint_path is None:
+            checkpoint_path = self.snapshot_path
         if os.path.exists(checkpoint_path):
             checkpoint = torch.load(checkpoint_path)
             self.model.load_state_dict(checkpoint['state_dict'])
@@ -494,8 +467,13 @@ class Trainer():
         traced_model = torch.jit.trace(self.model, (example_input,))
         print(traced_model)
 
-        torch.onnx.export(self.model, example_input, "mymodel.onnx", verbose=True)
-        assert False
+        self.model.cpu()
+        path = os.path.join(self.run_dir, self.cfg.run_name+'.onnx')
+        torch.onnx.export(self.model, example_input, path, verbose=True)
+        if torch.cuda.is_available():
+            self.model.cuda()
+        # assert False
+        pass
 
     def run(self):
         """
@@ -513,7 +491,7 @@ class Trainer():
 
         num_epochs = 0
         while num_epochs < self.epochs_to_train:
-            for i in range(4):
+            for i in range(1): # 4
                 self.train_epoch()
                 num_epochs += 1
             self.validate(do_dump_images=do_dump_images, save_checkpoint=True)
@@ -525,16 +503,18 @@ class Trainer():
 def main():
     """Entry point."""
 
-    default_config = 'resnet34_custom'
+    default_config = 'resnet34_pretrained'
+    # default_config = 'resnet34_custom'
 
     parser = argparse.ArgumentParser(description="Training script for 2D detection")
-    parser.add_argument("--checkpoint_path", default=None)
+    parser.add_argument("--validate", action='store_true')
     parser.add_argument("--config", default=default_config)
+    parser.add_argument("--checkpoint_path", default=None)
     args = parser.parse_args()
 
     trainer = Trainer(args.config)
 
-    if args.checkpoint_path != None:
+    if args.validate:
 
         print('Start validation')
         trainer.print_anchor_coverage()
@@ -545,9 +525,6 @@ def main():
 
     else:
 
-        print('Start preparing dataset')
-        trainer.prepare_dataset()
-        print('Finished preparing dataset')
         print('Start training')
         trainer.run()
         print('Finished training. Done!')

@@ -1,8 +1,10 @@
 import os
+import pickle
 
 import torch.utils.data as data
 
 import kitti_randomaccess
+from helpers import *
 
 
 class NameListDataset(data.Dataset):
@@ -33,11 +35,55 @@ class NameListDataset(data.Dataset):
         self.build_target = build_target
 
         self._is_pil_image = True
-        self.data_path = 'kitti/training/'
-        self.image_path = os.path.join(self.data_path, 'image_2')
+        self.data_path = self.get_data_path()
+        self.image_path = self.get_image_path()
         self.velo_path = os.path.join(self.data_path, 'velodyne')
         self.calib_path = os.path.join(self.data_path, 'calib')
         self.label_path = os.path.join(self.data_path, 'label_2')
+
+        pass
+
+    @staticmethod
+    def get_data_path():
+        return 'kitti/training/'
+
+    @staticmethod
+    def get_image_path():
+        return os.path.join(NameListDataset.get_data_path(), 'image_2')
+
+    @staticmethod
+    def list_all_images():
+        """Scan over all samples in the dataset"""
+
+        print('Start generation of a file list')
+
+        names = []
+        for root, _, fnames in sorted(os.walk(NameListDataset.get_image_path())):
+            for fname in sorted(fnames):
+                if is_image_file(fname):
+                    # path = os.path.join(root, fname)
+                    nameonly = os.path.splitext(fname)[0]
+                    names.append(nameonly)
+
+        print('End generation of a file list')
+
+        return names
+
+    @staticmethod
+    def train_val_split(image_list, train_val_split_dir, fraction_for_val=0.05):
+        """Prepare file lists for training and validation."""
+
+        train_num = int(len(image_list) * (1.0 - fraction_for_val))
+        train_list = image_list[:train_num]
+        val_list = image_list[train_num:]
+
+        def save_object(name, obj):
+            path = os.path.join(train_val_split_dir, name + '.pkl')
+            with open(path, 'wb') as output:
+                pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+
+        save_object('train_list', train_list)
+        save_object('val_list', val_list)
 
         pass
 

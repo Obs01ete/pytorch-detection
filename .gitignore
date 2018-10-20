@@ -3,7 +3,9 @@
 *.zip
 *.pth.tar
 *.png
-logs/*
-detection_dataset/*
-.idea/*
+logs/
+train_val_split/
+.idea/
 kitti/
+kitti
+runs/
