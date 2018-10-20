@@ -132,16 +132,32 @@ def clip_gradient(model, clip_val):
             p.grad.data.clamp_(-clip_val, clip_val)
 
 
+class Config(object):
+    def __init__(self, attr_dict):
+        for n, v in attr_dict.items():
+            self.__dict__[n] = v
+
+def import_config_by_name(config_name):
+    import importlib
+    config_module = importlib.import_module('configs.' + config_name)
+    cfg_dict = {key: value for key, value in config_module.__dict__.items() if
+                not (key.startswith('__') or key.startswith('_'))}
+    cfg = Config(cfg_dict)
+    return cfg
+
 
 class Trainer():
     """Class that performs train-validation loop to train a detection neural network."""
 
-    def __init__(self, dataset_dir):
+    def __init__(self, config_name):
         """
         Args:
             dataset_dir: directory with detection dataset
         """
 
+        self.cfg = import_config_by_name(config_name)
+
+        print("torch.__version__=", torch.__version__)
         torchvision.set_image_backend('accimage')
         print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
@@ -185,7 +201,7 @@ class Trainer():
         map_to_network_input = image_anno_transforms.MapImageAndAnnoToInputWindow(input_traits['resolution'])
 
         def load_list(name):
-            path = os.path.join(dataset_dir, name + '.pkl')
+            path = os.path.join(self.cfg.dataset_dir, name + '.pkl')
             with open(path, 'rb') as input:
                 return pickle.load(input)
 
@@ -225,6 +241,10 @@ class Trainer():
         self.writer = SummaryWriterOpt(enabled=True)
 
         pass
+
+
+    def prepare_dataset(self):
+        prepare_dataset(self.cfg.dataset_dir)
 
 
     @staticmethod
@@ -468,6 +488,15 @@ class Trainer():
         anchor_coverage.print()
 
 
+    def export(self):
+        resolution_hw = default_input_traits()["resolution"]
+        example_input = torch.rand((1, 3, *resolution_hw))
+        traced_model = torch.jit.trace(self.model, (example_input,))
+        print(traced_model)
+
+        torch.onnx.export(self.model, example_input, "mymodel.onnx", verbose=True)
+        assert False
+
     def run(self):
         """
         Launch training procedure. Performs training interleaved
@@ -496,29 +525,30 @@ class Trainer():
 def main():
     """Entry point."""
 
-    dataset_dir = 'detection_dataset'
+    default_config = 'resnet34_custom'
 
     parser = argparse.ArgumentParser(description="Training script for 2D detection")
     parser.add_argument("--checkpoint_path", default=None)
+    parser.add_argument("--config", default=default_config)
     args = parser.parse_args()
+
+    trainer = Trainer(args.config)
 
     if args.checkpoint_path != None:
 
         print('Start validation')
-        trainer = Trainer(dataset_dir)
         trainer.print_anchor_coverage()
         trainer.load_checkpoint(args.checkpoint_path)
+        trainer.export()
         trainer.validate(do_dump_images=True, save_checkpoint=False)
         print('Finished validation. Done!')
 
     else:
 
         print('Start preparing dataset')
-        prepare_dataset(dataset_dir)
+        trainer.prepare_dataset()
         print('Finished preparing dataset')
-
         print('Start training')
-        trainer = Trainer(dataset_dir)
         trainer.run()
         print('Finished training. Done!')
 
