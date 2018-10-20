@@ -12,3 +12,5 @@ backbone_specs = {
 }
 
 train_val_split_dir = 'train_val_split'
+
+epochs_before_val = 4

@@ -74,12 +74,15 @@ def create_detection_model(input_traits):
 
 def clip_gradient(model, clip_val):
     """Clip the gradient."""
-    for p in model.parameters():
-        if p.grad is not None:
-            mv = torch.max(torch.abs(p.grad.data))
-            if mv > clip_val:
-                print(colored("Grad max {:.3f}".format(mv), "red"))
-            p.grad.data.clamp_(-clip_val, clip_val)
+
+    # for p in model.parameters():
+    #     if p.grad is not None:
+    #         mv = torch.max(torch.abs(p.grad.data))
+    #         if mv > clip_val:
+    #             print(colored("Grad max {:.3f}".format(mv), "red"))
+    #         p.grad.data.clamp_(-clip_val, clip_val)
+
+    torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
 
 
 class Config(object):
@@ -194,7 +197,7 @@ class Trainer():
 
         self.print_freq = 10
 
-        self.writer = SummaryWriterOpt(enabled=True)
+        self.writer = None
 
         self.run_dir = os.path.join('runs', self.cfg.run_name)
         os.makedirs(self.run_dir, exist_ok=True)
@@ -254,8 +257,10 @@ class Trainer():
                 momentum=0.9,
                 weight_decay=0.0001)
 
-        detection_train_dump_dir = os.path.join(self.run_dir, 'detection_train_dump')
-        clean_dir(detection_train_dump_dir)
+        do_dump_train_images = False
+        if do_dump_train_images:
+            detection_train_dump_dir = os.path.join(self.run_dir, 'detection_train_dump')
+            clean_dir(detection_train_dump_dir)
 
         end = time.time()
         for batch_idx, sample in enumerate(self.train_loader):
@@ -264,7 +269,7 @@ class Trainer():
 
             input, target, names, pil_images, annotations, stats = sample
 
-            if False: # and random.random() < 0.01:
+            if do_dump_train_images: # and random.random() < 0.01:
                 dump_images(
                     names, pil_images, annotations, None, stats,
                     self.model.labelmap,
@@ -418,11 +423,12 @@ class Trainer():
         performance_metric = AP_list[self.model.labelmap.index('Car')]
 
         # Log to tensorboard
-        self.writer.add_scalar('val/mAP', mAP, self.train_iter)
-        self.writer.add_scalar('val/performance_metric', performance_metric, self.train_iter)
-        self.writer.add_scalar('val/loss', loss_total_am.avg, self.train_iter)
-        self.writer.add_scalar('val/loss_loc', loss_loc_am.avg, self.train_iter)
-        self.writer.add_scalar('val/loss_cls', loss_cls_am.avg, self.train_iter)
+        if self.writer is not None:
+            self.writer.add_scalar('val/mAP', mAP, self.train_iter)
+            self.writer.add_scalar('val/performance_metric', performance_metric, self.train_iter)
+            self.writer.add_scalar('val/loss', loss_total_am.avg, self.train_iter)
+            self.writer.add_scalar('val/loss_loc', loss_loc_am.avg, self.train_iter)
+            self.writer.add_scalar('val/loss_cls', loss_cls_am.avg, self.train_iter)
 
         if save_checkpoint:
             # Remember best accuracy and save checkpoint
@@ -446,6 +452,7 @@ class Trainer():
             self.model.load_state_dict(checkpoint['state_dict'])
         else:
             print("Checkpoint not found:", checkpoint_path)
+            assert False, "No sense to test random weights"
         pass
 
 
@@ -469,7 +476,7 @@ class Trainer():
 
         self.model.cpu()
         path = os.path.join(self.run_dir, self.cfg.run_name+'.onnx')
-        torch.onnx.export(self.model, example_input, path, verbose=True)
+        torch.onnx.export(self.model, example_input, path, verbose=False)
         if torch.cuda.is_available():
             self.model.cuda()
         # assert False
@@ -487,11 +494,13 @@ class Trainer():
 
         do_dump_images = False
 
+        self.writer = SummaryWriterOpt(enabled=True, suffix=self.cfg.run_name)
+
         # self.validate(do_dump_images=do_dump_images, save_checkpoint=False)
 
         num_epochs = 0
         while num_epochs < self.epochs_to_train:
-            for i in range(1): # 4
+            for i in range(self.cfg.epochs_before_val):
                 self.train_epoch()
                 num_epochs += 1
             self.validate(do_dump_images=do_dump_images, save_checkpoint=True)
@@ -503,8 +512,9 @@ class Trainer():
 def main():
     """Entry point."""
 
-    default_config = 'resnet34_pretrained'
+    # default_config = 'resnet34_pretrained'
     # default_config = 'resnet34_custom'
+    default_config = 'simple_model'
 
     parser = argparse.ArgumentParser(description="Training script for 2D detection")
     parser.add_argument("--validate", action='store_true')
