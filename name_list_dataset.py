@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 
 import torch.utils.data as data
@@ -118,6 +119,8 @@ class NameListDataset(data.Dataset):
             stats: debug information (number of anchor overlaps for every GT box)
         """
 
+        # t0 = time.time()
+
         name = self.dataset_list[index]
         image, velo, calib, anno = self._getitem(name)
 
@@ -129,9 +132,15 @@ class NameListDataset(data.Dataset):
         if self.image_and_anno_transform is not None:
             image, anno = self.image_and_anno_transform(image, anno)
 
-        input_tensor, anno = self.map_to_network_input(image, anno)
+        # print("image_and_anno_transform=", time.time()-t0)
 
+        # t1 = time.time()
+        input_tensor, anno = self.map_to_network_input(image, anno)
+        # print("map_to_network_input=", time.time()-t1)
+
+        # t2 = time.time()
         built_target, stats = self.build_target(anno)
+        # print("build_target=", time.time()-t2)
 
         return input_tensor, built_target, name, image, anno, stats
 

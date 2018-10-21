@@ -43,15 +43,16 @@ def default_input_traits():
 
 def train_image_transform():
     """PIL image transformation for training."""
-    return transforms.ColorJitter(
-        brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
+    return image_anno_transforms.ComposeVariadic([
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+    ])
 
 
 def train_image_and_annotation_transform():
     """Image+annotation synchronous transformation for training."""
     return image_anno_transforms.ComposeVariadic([
         image_anno_transforms.RandomHorizontalFlipWithAnno(),
-        image_anno_transforms.RandomCropWithAnno(0.3)
+        image_anno_transforms.RandomCropWithAnno(0.3),
     ])
 
 
@@ -239,6 +240,9 @@ class Trainer():
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
+        forward_time = AverageMeter()
+        loss_time = AverageMeter()
+        backward_time = AverageMeter()
         loss_total_am = AverageMeter()
         loss_loc_am = AverageMeter()
         loss_cls_am = AverageMeter()
@@ -279,8 +283,12 @@ class Trainer():
             input_var, target_var = self.wrap_sample_with_variable(input, target)
 
             # compute output
+            forward_ts = time.time()
             encoded_tensor = self.model_dp(input_var)
+            forward_time.update(time.time() - forward_ts)
+            loss_ts = time.time()
             loss, loss_details = self.model.get_loss(encoded_tensor, target_var)
+            loss_time.update(time.time() - loss_ts)
 
             # record loss
             loss_total_am.update(loss_details["loss"], input.size(0))
@@ -288,10 +296,12 @@ class Trainer():
             loss_cls_am.update(loss_details["cls_loss"], input.size(0))
 
             # compute gradient and do SGD step
+            backward_ts = time.time()
             self.optimizer.zero_grad()
             loss.backward()
             clip_gradient(self.model, 2.0)
             self.optimizer.step()
+            backward_time.update(time.time() - backward_ts)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -301,12 +311,16 @@ class Trainer():
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'Forward {forward_time.val:.3f} ({forward_time.avg:.3f})\t'
+                      'LossTime {loss_time.val:.3f} ({loss_time.avg:.3f})\t'
+                      'Backward {backward_time.val:.3f} ({backward_time.avg:.3f})\t'
                       'Loss {loss_total_am.val:.4f} ({loss_total_am.avg:.4f})\t'
                       'Loss_loc {loss_loc_am.val:.4f} ({loss_loc_am.avg:.4f})\t'
                       'Loss_cls {loss_cls_am.val:.4f} ({loss_cls_am.avg:.4f})\t'
                     .format(
                         self.epoch, batch_idx, len(self.train_loader),
                         batch_time=batch_time, data_time=data_time,
+                        forward_time=forward_time, loss_time=loss_time, backward_time=backward_time,
                         loss_total_am=loss_total_am, loss_loc_am=loss_loc_am, loss_cls_am=loss_cls_am
                     ))
 
@@ -315,16 +329,18 @@ class Trainer():
                 self.writer.add_scalar('train/loss_loc', loss_loc_am.avg, self.train_iter)
                 self.writer.add_scalar('train/loss_cls', loss_cls_am.avg, self.train_iter)
 
-                if self.train_iter > 0:
-                    for name, param in self.model.named_parameters():
-                        self.writer.add_histogram(name, param.detach().cpu().numpy(), self.train_iter, bins='fd')
-                        self.writer.add_histogram(name+'_grad', param.grad.detach().cpu().numpy(), self.train_iter, bins='fd')
+                num_prints = self.train_iter // self.print_freq
+                if num_prints == 0 or num_prints % 10 == 0:
+                    if self.train_iter > 0:
+                        for name, param in self.model.named_parameters():
+                            self.writer.add_histogram(name, param.detach().cpu().numpy(), self.train_iter, bins='fd')
+                            self.writer.add_histogram(name+'_grad', param.grad.detach().cpu().numpy(), self.train_iter, bins='fd')
 
-                first_conv = self.model.backbone.layers[0].conv._parameters['weight']
-                image_grid = torchvision.utils.make_grid(first_conv.detach().cpu(), normalize=True, scale_each=True)
-                image_grid_grad = torchvision.utils.make_grid(first_conv.grad.detach().cpu(), normalize=True, scale_each=True)
-                self.writer.add_image('layers0_conv', image_grid, self.train_iter)
-                self.writer.add_image('layers0_conv_grad', image_grid_grad, self.train_iter)
+                    first_conv = self.model.backbone.layers[0].conv._parameters['weight']
+                    image_grid = torchvision.utils.make_grid(first_conv.detach().cpu(), normalize=True, scale_each=True)
+                    image_grid_grad = torchvision.utils.make_grid(first_conv.grad.detach().cpu(), normalize=True, scale_each=True)
+                    self.writer.add_image('layers0_conv', image_grid, self.train_iter)
+                    self.writer.add_image('layers0_conv_grad', image_grid_grad, self.train_iter)
 
             self.train_iter += 1
             pass
