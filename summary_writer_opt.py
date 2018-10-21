@@ -28,3 +28,9 @@ class SummaryWriterOpt(object):
         self._create_writer()
         if self.writer is not None:
             self.writer.add_image(*args, **kwargs)
+
+    def add_histogram(self, *args, **kwargs):
+        self._create_writer()
+        if self.writer is not None:
+            self.writer.add_histogram(*args, **kwargs)
+

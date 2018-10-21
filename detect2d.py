@@ -121,14 +121,15 @@ class Trainer():
         print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
         self.epochs_to_train = 1000
-        self.base_learning_rate = 0.05 # 0.01
+        self.base_learning_rate = 0.1 #0.05 # 0.01
         self.lr_scales = (
-            (0, 0.1), # perform soft warm-up to reduce chance of divergence
-            (2, 0.2),
-            (4, 0.3),
-            (6, 0.5),
-            (8, 0.7),
-            (10, 1.0), # main learning rate multiplier
+            # (0, 0.1), # perform soft warm-up to reduce chance of divergence
+            # (2, 0.2),
+            # (4, 0.3),
+            # (6, 0.5),
+            # (8, 0.7),
+            # (10, 1.0), # main learning rate multiplier
+            (0, 1.0), # main learning rate multiplier
             (int(0.90 * self.epochs_to_train), 0.1),
             (int(0.95 * self.epochs_to_train), 0.01),
         )
@@ -224,8 +225,8 @@ class Trainer():
     def wrap_sample_with_variable(input, target, **kwargs):
         """Wrap tensor with Variable and push to cuda."""
         if torch.cuda.is_available():
-            input = input.cuda()
-            target = [t.cuda() for t in target]
+            input = input.cuda(non_blocking=True)
+            target = [t.cuda(non_blocking=True) for t in target]
         return input, target
 
 
@@ -313,6 +314,17 @@ class Trainer():
                 self.writer.add_scalar('train/loss', loss_total_am.avg, self.train_iter)
                 self.writer.add_scalar('train/loss_loc', loss_loc_am.avg, self.train_iter)
                 self.writer.add_scalar('train/loss_cls', loss_cls_am.avg, self.train_iter)
+
+                if self.train_iter > 0:
+                    for name, param in self.model.named_parameters():
+                        self.writer.add_histogram(name, param.detach().cpu().numpy(), self.train_iter, bins='fd')
+                        self.writer.add_histogram(name+'_grad', param.grad.detach().cpu().numpy(), self.train_iter, bins='fd')
+
+                first_conv = self.model.backbone.layers[0].conv._parameters['weight']
+                image_grid = torchvision.utils.make_grid(first_conv.detach().cpu(), normalize=True, scale_each=True)
+                image_grid_grad = torchvision.utils.make_grid(first_conv.grad.detach().cpu(), normalize=True, scale_each=True)
+                self.writer.add_image('layers0_conv', image_grid, self.train_iter)
+                self.writer.add_image('layers0_conv_grad', image_grid_grad, self.train_iter)
 
             self.train_iter += 1
             pass
@@ -499,8 +511,12 @@ class Trainer():
         # self.validate(do_dump_images=do_dump_images, save_checkpoint=False)
 
         num_epochs = 0
-        while num_epochs < self.epochs_to_train:
+        do_process = True
+        while do_process:
             for i in range(self.cfg.epochs_before_val):
+                if num_epochs >= self.epochs_to_train:
+                    do_process = False
+                    break
                 self.train_epoch()
                 num_epochs += 1
             self.validate(do_dump_images=do_dump_images, save_checkpoint=True)
@@ -536,6 +552,7 @@ def main():
     else:
 
         print('Start training')
+        # trainer.load_checkpoint("runs/simple_model_1x1/simple_model_1x1_epochs452.pth.tar")
         trainer.run()
         print('Finished training. Done!')
 

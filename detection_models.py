@@ -247,7 +247,8 @@ class MultiboxLayers(nn.Module):
         cls_loss_vec = F.cross_entropy(pred_class_flat, target_class_indexes_flat, reduction='none')
         cls_loss_vec = cls_loss_vec.view(batch_size, -1)
 
-        if True:
+        use_ohem = False
+        if use_ohem:
             # Online hard sample mining (OHEM)
             neg_to_pos_ratio = 3 # the same as in the original SSD
             virtual_min_positive_matches = 100 # value for NN to learn on images without annotations
@@ -276,12 +277,14 @@ class MultiboxLayers(nn.Module):
             cls_loss = cls_loss_vec.sum() / cls_loss_vec.shape[1]
 
         loc_loss_mult = 0.2
-        loc_loss_weighted = loc_loss_mult*loc_loss
-        loss = loc_loss_weighted + cls_loss
+        cls_loss_mult = 1.0 if use_ohem else 8.0
+        loc_loss_weighted = loc_loss_mult * loc_loss
+        cls_loss_weighted = cls_loss_mult * cls_loss
+        loss = loc_loss_weighted + cls_loss_weighted
 
         loss_details = {
             "loc_loss": loc_loss_weighted,
-            "cls_loss": cls_loss,
+            "cls_loss": cls_loss_weighted,
             "loss": loss
         }
         loss_details = {name: float(var.item()) for (name, var) in loss_details.items()}
