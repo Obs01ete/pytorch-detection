@@ -67,10 +67,10 @@ class BuildTargetFunctor(object):
         return self.model.build_target(*args)
 
 
-def create_detection_model(input_traits):
-    labelmap = NameListDataset.getLabelmap()
-    model = detection_models.SingleShotDetector(input_traits['resolution'], labelmap)
-    return model
+# def create_detection_model(input_traits):
+#     labelmap = NameListDataset.getLabelmap()
+#     model = detection_models.SingleShotDetector(input_traits['resolution'], labelmap)
+#     return model
 
 
 def clip_gradient(model, clip_val):
@@ -145,7 +145,12 @@ class Trainer():
 
         labelmap = NameListDataset.getLabelmap()
 
-        model = detection_models.SingleShotDetector(self.cfg.backbone_specs, input_traits['resolution'], labelmap)
+        model = detection_models.SingleShotDetector(
+            self.cfg.backbone_specs,
+            self.cfg.multibox_specs,
+            input_traits['resolution'],
+            labelmap)
+
         if True:
             model_dp = torch.nn.DataParallel(model)
             cudnn.benchmark = True
@@ -299,7 +304,7 @@ class Trainer():
             backward_ts = time.time()
             self.optimizer.zero_grad()
             loss.backward()
-            clip_gradient(self.model, 2.0)
+            clip_gradient(self.model.backbone, 2.0)
             self.optimizer.step()
             backward_time.update(time.time() - backward_ts)
 
@@ -330,13 +335,17 @@ class Trainer():
                 self.writer.add_scalar('train/loss_cls', loss_cls_am.avg, self.train_iter)
 
                 num_prints = self.train_iter // self.print_freq
-                if num_prints == 0 or num_prints % 10 == 0:
+                print('num_prints=', num_prints)
+                num_prints_rare = num_prints // 100
+                print('num_prints_rare=', num_prints_rare)
+                if num_prints_rare == 0 and num_prints % 10 == 0 or num_prints % 100 == 0:
+                    print('save historgams')
                     if self.train_iter > 0:
                         for name, param in self.model.named_parameters():
                             self.writer.add_histogram(name, param.detach().cpu().numpy(), self.train_iter, bins='fd')
                             self.writer.add_histogram(name+'_grad', param.grad.detach().cpu().numpy(), self.train_iter, bins='fd')
 
-                    first_conv = self.model.backbone.layers[0].conv._parameters['weight']
+                    first_conv = list(self.model.backbone._modules.items())[0][1]._parameters['weight']
                     image_grid = torchvision.utils.make_grid(first_conv.detach().cpu(), normalize=True, scale_each=True)
                     image_grid_grad = torchvision.utils.make_grid(first_conv.grad.detach().cpu(), normalize=True, scale_each=True)
                     self.writer.add_image('layers0_conv', image_grid, self.train_iter)
@@ -544,9 +553,9 @@ class Trainer():
 def main():
     """Entry point."""
 
-    # default_config = 'resnet34_pretrained'
+    default_config = 'resnet34_pretrained'
     # default_config = 'resnet34_custom'
-    default_config = 'simple_model'
+    # default_config = 'simple_model'
 
     parser = argparse.ArgumentParser(description="Training script for 2D detection")
     parser.add_argument("--validate", action='store_true')

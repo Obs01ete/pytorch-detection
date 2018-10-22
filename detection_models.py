@@ -72,12 +72,13 @@ class ExtraLayers(nn.Module):
 class MultiboxLayers(nn.Module):
     """Detection head of SSD. It is customized for regular anchors across pyramid's scales."""
 
-    def __init__(self, final_branch_channels, labelmap):
+    def __init__(self, final_branch_channels, labelmap, use_ohem=False):
         super().__init__()
 
         self.final_branch_channels = final_branch_channels
         self.labelmap = labelmap
         self.num_classes = len(self.labelmap)
+        self.use_ohem = use_ohem
 
         sizes = [math.pow(2.0, 0.25), math.pow(2.0, 0.75)]
         self.iou_anchor_and_gt = 0.3
@@ -247,8 +248,7 @@ class MultiboxLayers(nn.Module):
         cls_loss_vec = F.cross_entropy(pred_class_flat, target_class_indexes_flat, reduction='none')
         cls_loss_vec = cls_loss_vec.view(batch_size, -1)
 
-        use_ohem = False
-        if use_ohem:
+        if self.use_ohem:
             # Online hard sample mining (OHEM)
             neg_to_pos_ratio = 3 # the same as in the original SSD
             virtual_min_positive_matches = 100 # value for NN to learn on images without annotations
@@ -277,7 +277,7 @@ class MultiboxLayers(nn.Module):
             cls_loss = cls_loss_vec.sum() / cls_loss_vec.shape[1]
 
         loc_loss_mult = 0.2
-        cls_loss_mult = 1.0 if use_ohem else 8.0
+        cls_loss_mult = 1.0 if self.use_ohem else 8.0
         loc_loss_weighted = loc_loss_mult * loc_loss
         cls_loss_weighted = cls_loss_mult * cls_loss
         loss = loc_loss_weighted + cls_loss_weighted
@@ -357,7 +357,7 @@ class MultiboxLayers(nn.Module):
 
 
 class SingleShotDetector(nn.Module):
-    def __init__(self, backbone_specs, input_resolution, labelmap):
+    def __init__(self, backbone_specs, multibox_specs, input_resolution, labelmap):
         """
         Ctor.
 
@@ -412,7 +412,7 @@ class SingleShotDetector(nn.Module):
         final_branch_channels = [b.shape[1] for b in final_branches]
 
         # add multi-branch detection head on top of all branches
-        self.multibox_layers = MultiboxLayers(final_branch_channels, self.labelmap)
+        self.multibox_layers = MultiboxLayers(final_branch_channels, self.labelmap, multibox_specs['use_ohem'])
         self.multibox_layers.eval()
         # probe multibox, save branch resolutions, generate anchors
         self.multibox_layers(final_branches, is_probe=True)

@@ -11,6 +11,10 @@ backbone_specs = {
     'head_channel_multiplier': 128,
 }
 
+multibox_specs = {
+    'use_ohem': True
+}
+
 train_val_split_dir = 'train_val_split'
 
 epochs_before_val = 4
