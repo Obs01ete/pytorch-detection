@@ -73,17 +73,22 @@ class BuildTargetFunctor(object):
 #     return model
 
 
-def clip_gradient(model, clip_val):
+def clip_gradient(model, clip_val, mode):
     """Clip the gradient."""
 
-    # for p in model.parameters():
-    #     if p.grad is not None:
-    #         mv = torch.max(torch.abs(p.grad.data))
-    #         if mv > clip_val:
-    #             print(colored("Grad max {:.3f}".format(mv), "red"))
-    #         p.grad.data.clamp_(-clip_val, clip_val)
+    assert mode in ('by_max', 'by_norm')
 
-    torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
+    if mode is 'by_max':
+        for p in model.parameters():
+            if p.grad is not None:
+                mv = torch.max(torch.abs(p.grad.data))
+                if mv > clip_val:
+                    print(colored("Grad max {:.3f}".format(mv), "red"))
+                p.grad.data.clamp_(-clip_val, clip_val)
+    elif mode is 'by_norm':
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
+
+    pass
 
 
 class Config(object):
@@ -122,15 +127,15 @@ class Trainer():
         print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
         self.epochs_to_train = 1000
-        self.base_learning_rate = 0.1 #0.05 # 0.01
+        self.base_learning_rate = 0.02 #0.05 # 0.01
         self.lr_scales = (
-            # (0, 0.1), # perform soft warm-up to reduce chance of divergence
-            # (2, 0.2),
-            # (4, 0.3),
-            # (6, 0.5),
-            # (8, 0.7),
-            # (10, 1.0), # main learning rate multiplier
-            (0, 1.0), # main learning rate multiplier
+            (0, 0.1), # perform soft warm-up to reduce chance of divergence
+            (2, 0.2),
+            (4, 0.3),
+            (6, 0.5),
+            (8, 0.7),
+            (10, 1.0), # main learning rate multiplier
+            # (0, 1.0), # main learning rate multiplier
             (int(0.90 * self.epochs_to_train), 0.1),
             (int(0.95 * self.epochs_to_train), 0.01),
         )
@@ -162,6 +167,12 @@ class Trainer():
 
         self.model = model
         self.model_dp = model_dp
+
+        # # experimental: disable running statistics, normalize by a single batch
+        # for child in model.children():
+        #     for ii in range(len(child)):
+        #         if type(child[ii]) == torch.nn.BatchNorm2d:
+        #             child[ii].track_running_stats = False
 
         build_target = BuildTargetFunctor(model)
         map_to_network_input = image_anno_transforms.MapImageAndAnnoToInputWindow(input_traits['resolution'])
@@ -257,17 +268,23 @@ class Trainer():
 
         is_lr_change = self.epoch in [epoch for epoch, _ in self.lr_scales]
         if self.optimizer is None or is_lr_change:
+            scale = None
             if self.optimizer is None:
                 scale = 1.0
             if is_lr_change:
                 scale = [sc for epoch, sc in self.lr_scales if epoch == self.epoch][0]
             self.learning_rate = self.base_learning_rate * scale
-            self.optimizer = torch.optim.SGD(
-                self.model_dp.parameters(), self.learning_rate,
-                momentum=0.9,
-                weight_decay=0.0001)
+            if self.optimizer is None:
+                self.optimizer = torch.optim.SGD(
+                    self.model_dp.parameters(), self.learning_rate,
+                    momentum=0.9,
+                    weight_decay=0.0001)
+            else:
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = self.learning_rate
 
         do_dump_train_images = False
+        detection_train_dump_dir = None
         if do_dump_train_images:
             detection_train_dump_dir = os.path.join(self.run_dir, 'detection_train_dump')
             clean_dir(detection_train_dump_dir)
@@ -304,7 +321,8 @@ class Trainer():
             backward_ts = time.time()
             self.optimizer.zero_grad()
             loss.backward()
-            clip_gradient(self.model.backbone, 2.0)
+            clip_gradient(self.model, 2.0, 'by_max')
+            # clip_gradient(self.model.backbone, 2.0, 'by_max')
             self.optimizer.step()
             backward_time.update(time.time() - backward_ts)
 
@@ -333,15 +351,21 @@ class Trainer():
                 self.writer.add_scalar('train/loss', loss_total_am.avg, self.train_iter)
                 self.writer.add_scalar('train/loss_loc', loss_loc_am.avg, self.train_iter)
                 self.writer.add_scalar('train/loss_cls', loss_cls_am.avg, self.train_iter)
+                self.writer.add_scalar('train/lr', self.learning_rate, self.train_iter)
 
                 num_prints = self.train_iter // self.print_freq
-                print('num_prints=', num_prints)
+                # print('num_prints=', num_prints)
                 num_prints_rare = num_prints // 100
-                print('num_prints_rare=', num_prints_rare)
+                # print('num_prints_rare=', num_prints_rare)
                 if num_prints_rare == 0 and num_prints % 10 == 0 or num_prints % 100 == 0:
                     print('save historgams')
                     if self.train_iter > 0:
-                        for name, param in self.model.named_parameters():
+                        import itertools
+                        named_parameters = itertools.chain(
+                            self.model.multibox_layers.named_parameters(),
+                            self.model.extra_layers.named_parameters(),
+                            )
+                        for name, param in named_parameters:
                             self.writer.add_histogram(name, param.detach().cpu().numpy(), self.train_iter, bins='fd')
                             self.writer.add_histogram(name+'_grad', param.grad.detach().cpu().numpy(), self.train_iter, bins='fd')
 

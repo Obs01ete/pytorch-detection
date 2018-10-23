@@ -276,7 +276,7 @@ class MultiboxLayers(nn.Module):
             # Average loss over all anchors (worse convergence than with OHEM)
             cls_loss = cls_loss_vec.sum() / cls_loss_vec.shape[1]
 
-        loc_loss_mult = 0.2
+        loc_loss_mult = 1.0 #0.2
         cls_loss_mult = 1.0 if self.use_ohem else 8.0
         loc_loss_weighted = loc_loss_mult * loc_loss
         cls_loss_weighted = cls_loss_mult * cls_loss
