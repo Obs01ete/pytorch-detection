@@ -126,7 +126,7 @@ class Trainer():
         torchvision.set_image_backend('accimage')
         print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
-        self.epochs_to_train = 1000
+        self.epochs_to_train = 500
         self.base_learning_rate = 0.02 #0.05 # 0.01
         self.lr_scales = (
             (0, 0.1), # perform soft warm-up to reduce chance of divergence
@@ -580,6 +580,7 @@ def main():
     default_config = 'resnet34_pretrained'
     # default_config = 'resnet34_custom'
     # default_config = 'simple_model'
+    # default_config = 'resnet50_pretrained'
 
     parser = argparse.ArgumentParser(description="Training script for 2D detection")
     parser.add_argument("--validate", action='store_true')
