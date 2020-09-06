@@ -11,6 +11,14 @@ files = [
     # "data_object_velodyne.zip",
 ]
 
+# files = [
+#     "data_tracking_velodyne.zip",
+#     "data_tracking_image_2.zip",
+#     "data_tracking_oxts.zip",
+#     "data_tracking_calib.zip",
+#     "data_tracking_label_2.zip",
+# ]
+
 location = "https://s3.eu-central-1.amazonaws.com/avg-kitti/"
 
 dst_dir = "kitti/"

@@ -2,7 +2,7 @@ import torch
 import collections
 import re
 from torch._six import string_classes, int_classes
-from torch.utils.data.dataloader import numpy_type_map, _use_shared_memory
+# from torch.utils.data.dataloader import numpy_type_map, _use_shared_memory
 
 def extended_collate(batch, depth=0, collate_first_n=2):
     """
@@ -16,12 +16,12 @@ def extended_collate(batch, depth=0, collate_first_n=2):
     elem_type = type(batch[0])
     if torch.is_tensor(batch[0]):
         out = None
-        if _use_shared_memory:
-            # If we're in a background process, concatenate directly into a
-            # shared memory tensor to avoid an extra copy
-            numel = sum([x.numel() for x in batch])
-            storage = batch[0].storage()._new_shared(numel)
-            out = batch[0].new(storage)
+        # if _use_shared_memory:
+        #     # If we're in a background process, concatenate directly into a
+        #     # shared memory tensor to avoid an extra copy
+        #     numel = sum([x.numel() for x in batch])
+        #     storage = batch[0].storage()._new_shared(numel)
+        #     out = batch[0].new(storage)
         return torch.stack(batch, 0, out=out)
     elif elem_type.__module__ == 'numpy' and elem_type.__name__ != 'str_' \
             and elem_type.__name__ != 'string_':
@@ -32,9 +32,9 @@ def extended_collate(batch, depth=0, collate_first_n=2):
                 raise TypeError(error_msg.format(elem.dtype))
 
             return torch.stack([torch.from_numpy(b) for b in batch], 0)
-        if elem.shape == ():  # scalars
-            py_type = float if elem.dtype.name.startswith('float') else int
-            return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
+        # if elem.shape == ():  # scalars
+        #     py_type = float if elem.dtype.name.startswith('float') else int
+        #     return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
     elif isinstance(batch[0], string_classes):
         return batch
     elif isinstance(batch[0], collections.Sequence):
