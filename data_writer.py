@@ -7,7 +7,7 @@ import os
 import numpy as np
 
 
-class Writer(object):
+class Writer:
     """Write results into same format as label .txt files."""
 
     def __init__(self, data_path):

@@ -3,7 +3,8 @@
 
 import numpy as np
 
-class AnchorCoverage(object):
+
+class AnchorCoverage:
     def __init__(self):
         self.annotations = []
         self.stats = []
@@ -23,7 +24,6 @@ class AnchorCoverage(object):
         for frame_anno, frame_stat in zip(self.annotations, self.stats):
             for anno, stat in zip(frame_anno, frame_stat):
                 height = anno['bbox'][3] - anno['bbox'][1]
-                #height_bin = min(math.floor(height*num_height_bins), num_height_bins-1)
                 height_bin = min(math.floor(-math.log2(height)*2), num_height_bins-1)
                 quantity_bin = min(stat, max_quantity-1)
                 hist[height_bin, quantity_bin] += 1

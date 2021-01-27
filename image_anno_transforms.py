@@ -10,7 +10,7 @@ def normalize_image():
         std=[0.25]*3)
 
 
-class RandomCropWithAnno(object):
+class RandomCropWithAnno:
     """
     Crop the given PIL.Image at a random location along with annotations.
     Do not drop or crop annotations.
@@ -53,7 +53,7 @@ class RandomCropWithAnno(object):
         return img_out, anno
 
 
-class RandomHorizontalFlipWithAnno(object):
+class RandomHorizontalFlipWithAnno:
     """Horizontally flip the given PIL.Image + annotation randomly with a probability of 0.5."""
 
     def __call__(self, img, anno):
@@ -77,7 +77,7 @@ class RandomHorizontalFlipWithAnno(object):
         return img, anno
 
 
-class ComposeVariadic(object):
+class ComposeVariadic:
     """
     Composes several transforms together. Processes lists of image + annotation + whatever.
 
@@ -94,7 +94,7 @@ class ComposeVariadic(object):
         return args
 
 
-class MapImageAndAnnoToInputWindow(object):
+class MapImageAndAnnoToInputWindow:
     """Transform to map any image + anno to network input format."""
 
     def __init__(self, input_resolution):

@@ -56,7 +56,7 @@ def train_image_and_annotation_transform():
     ])
 
 
-class BuildTargetFunctor(object):
+class BuildTargetFunctor:
     """Functor to delegate model's target construction to preprocessing threads."""
 
     def __init__(self, model):
@@ -64,12 +64,6 @@ class BuildTargetFunctor(object):
 
     def __call__(self, *args):
         return self.model.build_target(*args)
-
-
-# def create_detection_model(input_traits):
-#     labelmap = NameListDataset.getLabelmap()
-#     model = detection_models.SingleShotDetector(input_traits['resolution'], labelmap)
-#     return model
 
 
 def clip_gradient(model, clip_val, mode):
@@ -90,7 +84,7 @@ def clip_gradient(model, clip_val, mode):
     pass
 
 
-class Config(object):
+class Config:
     def __init__(self, attr_dict):
         for n, v in attr_dict.items():
             self.__dict__[n] = v
@@ -127,7 +121,7 @@ class Trainer:
         print("torchvision.get_image_backend()=", torchvision.get_image_backend())
 
         self.epochs_to_train = 500
-        self.base_learning_rate = 0.02 #0.05 # 0.01
+        self.base_learning_rate = 0.02
         self.lr_scales = (
             (0, 0.1), # perform soft warm-up to reduce chance of divergence
             (2, 0.2),
@@ -135,7 +129,6 @@ class Trainer:
             (6, 0.5),
             (8, 0.7),
             (10, 1.0), # main learning rate multiplier
-            # (0, 1.0), # main learning rate multiplier
             (int(0.90 * self.epochs_to_train), 0.1),
             (int(0.95 * self.epochs_to_train), 0.01),
         )
@@ -167,12 +160,6 @@ class Trainer:
 
         self.model = model
         self.model_dp = model_dp
-
-        # # experimental: disable running statistics, normalize by a single batch
-        # for child in model.children():
-        #     for ii in range(len(child)):
-        #         if type(child[ii]) == torch.nn.BatchNorm2d:
-        #             child[ii].track_running_stats = False
 
         build_target = BuildTargetFunctor(model)
         map_to_network_input = image_anno_transforms.MapImageAndAnnoToInputWindow(input_traits['resolution'])
@@ -209,9 +196,11 @@ class Trainer:
             num_workers=num_workers_val, collate_fn=extended_collate, pin_memory=True)
 
         self.optimizer = None
+        self.learning_rate = None
 
         self.train_iter = 0
         self.epoch = 0
+        self.best_performance_metric = None
 
         self.print_freq = 10
 
@@ -319,7 +308,6 @@ class Trainer:
             self.optimizer.zero_grad()
             loss.backward()
             clip_gradient(self.model, 2.0, 'by_max')
-            # clip_gradient(self.model.backbone, 2.0, 'by_max')
             self.optimizer.step()
             backward_time.update(time.time() - backward_ts)
 
@@ -565,8 +553,6 @@ class Trainer:
         pass
 
 
-
-
 def main():
     """Entry point."""
 
@@ -600,7 +586,6 @@ def main():
         print('Finished training. Done!')
 
     pass
-
 
 
 if __name__ == "__main__":

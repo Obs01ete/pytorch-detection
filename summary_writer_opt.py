@@ -4,7 +4,8 @@ import os
 import time
 from tensorboardX import SummaryWriter
 
-class SummaryWriterOpt(object):
+
+class SummaryWriterOpt:
     def __init__(self, enabled=True, log_root_dir="logs", suffix=None):
         self.enabled = enabled
         self.writer = None

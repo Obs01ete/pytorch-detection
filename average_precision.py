@@ -20,8 +20,7 @@ def iou_point_np(box, boxes):
     return iou
 
 
-
-class AveragePrecision(object):
+class AveragePrecision:
     """Average precision calculation using sort-and-iterate algorithm (VOC12)"""
 
     def __init__(self, labelmap, iou_threshold_perclass):

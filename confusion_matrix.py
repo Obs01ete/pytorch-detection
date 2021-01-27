@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def save_confusion_matrix(confusion_matrix, labelmap, path):
     plt.interactive(False)
 

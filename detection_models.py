@@ -67,8 +67,6 @@ class ExtraLayers(nn.Module):
         return branches
 
 
-
-
 class MultiboxLayers(nn.Module):
     """Detection head of SSD. It is customized for regular anchors across pyramid's scales."""
 
@@ -104,6 +102,8 @@ class MultiboxLayers(nn.Module):
             self.add_module(name, conv)
 
         self.detect_functor = decode_detection.Detect(self.num_classes, 0, 200, 0.45, self.variances)
+
+        self.branch_resolutions = None
 
         pass
 
