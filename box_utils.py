@@ -111,7 +111,7 @@ def match(threshold, truths, priors, variances, labels):
     cls[best_truth_overlap < threshold] = 0  # label as background
     loc = encode(matches, priors, variances)
 
-    # Dmitry Khizbullin: return numbers of matches as well
+    # Dmitrii Khizbullin: return numbers of matches as well
     matches = overlaps > threshold
     num_matches = matches.long().sum(dim=1)
 

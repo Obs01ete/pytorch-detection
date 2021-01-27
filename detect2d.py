@@ -1,4 +1,4 @@
-# Author: Dmitry Khizbullin
+# Author: Dmitrii Khizbullin
 # A script to train a neural network for 2d detection task.
 # Some code is borrowed from pytorch examples and torchvision.
 
@@ -56,7 +56,6 @@ def train_image_and_annotation_transform():
     ])
 
 
-
 class BuildTargetFunctor(object):
     """Functor to delegate model's target construction to preprocessing threads."""
 
@@ -96,6 +95,7 @@ class Config(object):
         for n, v in attr_dict.items():
             self.__dict__[n] = v
 
+
 def import_config_by_name(config_name):
     config_module = importlib.import_module('configs.' + config_name)
     cfg_dict = {key: value for key, value in config_module.__dict__.items() if
@@ -104,7 +104,7 @@ def import_config_by_name(config_name):
     return cfg
 
 
-class Trainer():
+class Trainer:
     """Class that performs train-validation loop to train a detection neural network."""
 
     def __init__(self, config_name):
@@ -223,7 +223,6 @@ class Trainer():
 
         pass
 
-
     def prepare_dataset(self):
         """Prepare dataset for training the detector. Done only once."""
 
@@ -237,7 +236,6 @@ class Trainer():
 
         NameListDataset.train_val_split(image_list, self.cfg.train_val_split_dir)
 
-
     @staticmethod
     def wrap_sample_with_variable(input, target, **kwargs):
         """Wrap tensor with Variable and push to cuda."""
@@ -245,7 +243,6 @@ class Trainer():
             input = input.cuda(non_blocking=True)
             target = [t.cuda(non_blocking=True) for t in target]
         return input, target
-
 
     def train_epoch(self):
         """
@@ -380,7 +377,6 @@ class Trainer():
 
         self.epoch += 1
 
-
     def to_class_grouped_anno(self, batch_anno):
         """
         Since annotations have all classes mixed together, need to group them by class to
@@ -398,7 +394,6 @@ class Trainer():
                 for objs in classes]
             all_annotations.append(classes)
         return all_annotations
-
 
     def validate(self, do_dump_images=False, save_checkpoint=False):
         """
@@ -503,7 +498,6 @@ class Trainer():
 
         pass
 
-
     def load_checkpoint(self, checkpoint_path):
         """Load spesified snapshot to the network."""
         if checkpoint_path is None:
@@ -516,7 +510,6 @@ class Trainer():
             assert False, "No sense to test random weights"
         pass
 
-
     def print_anchor_coverage(self):
         from anchor_coverage import AnchorCoverage
 
@@ -528,16 +521,16 @@ class Trainer():
 
         anchor_coverage.print()
 
-
     def export(self):
         resolution_hw = default_input_traits()["resolution"]
         example_input = torch.rand((1, 3, *resolution_hw))
-        traced_model = torch.jit.trace(self.model, (example_input,))
+        example_input_cuda = example_input.cuda()
+        traced_model = torch.jit.trace(self.model, (example_input_cuda,))
         print(traced_model)
 
         self.model.cpu()
         path = os.path.join(self.run_dir, self.cfg.run_name+'.onnx')
-        torch.onnx.export(self.model, example_input, path, verbose=False)
+        torch.onnx.export(self.model, (example_input,), path, verbose=False)
         if torch.cuda.is_available():
             self.model.cuda()
         # assert False

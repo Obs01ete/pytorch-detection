@@ -7,7 +7,7 @@ from torch._six import string_classes, int_classes
 def extended_collate(batch, depth=0, collate_first_n=2):
     """
     Puts each data field into a tensor with outer dimension batch size.
-    Dmitry Khzibullin: iteratively collate only first 2 items: image and target.
+    Dmitrii Khzibullin: iteratively collate only first 2 items: image and target.
     """
 
     depth += 1

@@ -1,5 +1,5 @@
 # Borrowed and modified torchvision/models/resnet.py
-# See comments starting from "Dmitry Khizbullin:"
+# See comments starting from "Dmitrii Khizbullin:"
 
 import torch.nn as nn
 import math
@@ -108,7 +108,7 @@ class ResNetBackbone(nn.Module):
         self.layer2 = self._make_layer(block, channel_multiplier*channel_config[1], layers[1], stride=2)
         self.layer3 = self._make_layer(block, channel_multiplier*channel_config[2], layers[2], stride=2)
         self.layer4 = self._make_layer(block, channel_multiplier*channel_config[3], layers[3], stride=2)
-        # Dmitry Khizbullin: remove classification head
+        # Dmitrii Khizbullin: remove classification head
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -167,7 +167,7 @@ def load_state_dict(self, state_dict):
         try:
             own_state[name].copy_(param)
         except:
-            # Dmitry Khizbullin: skip weights if they cannot be loaded
+            # Dmitrii Khizbullin: skip weights if they cannot be loaded
 
             #print('While copying the parameter named {}, whose dimensions in the model are'
             #      ' {} and whose dimensions in the checkpoint are {}, ...'.format(

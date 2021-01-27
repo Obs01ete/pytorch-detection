@@ -1,4 +1,4 @@
-# Author: Dmitry Khizbullin
+# Author: Dmitrii Khizbullin
 # Builds a table of numbers of anchor boxes which cover each ground truth box
 
 import numpy as np

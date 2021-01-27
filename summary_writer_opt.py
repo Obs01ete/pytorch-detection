@@ -1,4 +1,4 @@
-# Author: Dmitry Khizbullin
+# Author: Dmitrii Khizbullin
 
 import os
 import time
