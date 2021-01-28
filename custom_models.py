@@ -25,17 +25,6 @@ class SimpleBackbone(nn.Module):
 
         base_multiplier = 32
 
-        # self.config = (
-        #     (1.0, 3, 2, False),
-        #     (1.0, 3, 2, False),
-        #     (1.0, 3, 1, True),
-        #     (2.0, 3, 2, False),
-        #     (2.0, 3, 1, True),
-        #     (2.0, 3, 2, False),
-        #     (2.0, 3, 1, True),
-        #     (2.0, 3, 2, False),
-        #     (2.0, 3, 1, True),
-        # )
         self.config = (
             (1.0, 7, 2, False),
 

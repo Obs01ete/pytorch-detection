@@ -15,6 +15,8 @@ Work resolution of 256x512 is used as input to the neural network. Resnet-34 is 
  - [512, 4, 8]
  - [256, 2, 4]
  - [256, 1, 2]
+ 
+![](assets/netron.png)
 
 Imagenet-pretrained model is taken from Pytorch’es samples, weights were not frozen.
 Anchors are generated in a way that in one cell there are 6 anchors: 3 aspect ratios and 2 scales.
