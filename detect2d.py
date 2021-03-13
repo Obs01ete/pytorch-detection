@@ -133,7 +133,8 @@ class Trainer:
             (int(0.95 * self.epochs_to_train), 0.01),
         )
 
-        self.train_batch_size = 32
+        num_devices = torch.cuda.device_count()
+        self.train_batch_size = 32 * num_devices
         self.val_batch_size = 32
 
         num_workers_train = 12
@@ -590,6 +591,7 @@ def main():
 
 if __name__ == "__main__":
     try:
+        os.environ["OMP_NUM_THREADS"] = "1"
         main()
     except KeyboardInterrupt:
         print('Interrupted')
