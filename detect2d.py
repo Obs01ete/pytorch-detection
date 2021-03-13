@@ -31,6 +31,7 @@ from debug_tools import dump_images
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+
 def init_process(rank, size, backend='gloo'):
     """ Initialize the distributed environment. """
     os.environ['MASTER_ADDR'] = '127.0.0.1'
@@ -111,7 +112,7 @@ def import_config_by_name(config_name):
 class Trainer:
     """Class that performs train-validation loop to train a detection neural network."""
 
-    def __init__(self, config_name, rank):
+    def __init__(self, config_name, rank, world_size):
         """
         Args:
             config_name: name of a configuration module to import
@@ -145,8 +146,8 @@ class Trainer:
             (int(0.95 * self.epochs_to_train), 0.01),
         )
 
-        self.train_batch_size = 32
-        self.val_batch_size = 32
+        self.train_batch_size = 32 // world_size
+        self.val_batch_size = 8 // world_size
 
         num_workers_train = 12
         num_workers_val = 12
@@ -584,7 +585,7 @@ def main(rank, world_size):
             f"Rank {rank + 1}/{world_size} process initialized.\n"
         )
 
-    trainer = Trainer(args.config, rank)
+    trainer = Trainer(args.config, rank, world_size)
 
     if args.validate:
 
@@ -607,6 +608,8 @@ def main(rank, world_size):
 
 if __name__ == "__main__":
     WORLD_SIZE = torch.cuda.device_count()
+
+    os.environ["OMP_NUM_THREADS"] = "1"
 
     try:
         mp.spawn(main, args=(WORLD_SIZE,), nprocs=WORLD_SIZE, join=True)
