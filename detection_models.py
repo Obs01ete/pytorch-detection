@@ -226,8 +226,8 @@ class MultiboxLayers(nn.Module):
         target_xywh = encoded_target[0]
         target_class_indexes = encoded_target[1]
         if torch.cuda.is_available():
-            target_xywh = target_xywh.cuda()
-            target_class_indexes = target_class_indexes.cuda()
+            target_xywh = target_xywh.to(encoded_prediction.device)
+            target_class_indexes = target_class_indexes.to(encoded_prediction.device)
 
         # determine positives
         bbox_matches_byte = target_class_indexes > 0

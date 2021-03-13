@@ -28,6 +28,16 @@ import average_precision
 from debug_tools import dump_images
 
 
+import torch.distributed as dist
+import torch.multiprocessing as mp
+
+def init_process(rank, size, backend='gloo'):
+    """ Initialize the distributed environment. """
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    dist.init_process_group(backend, rank=rank, world_size=size)
+
+
 def default_input_traits():
     """
     Default resolutions for training and evaluation.
@@ -101,7 +111,7 @@ def import_config_by_name(config_name):
 class Trainer:
     """Class that performs train-validation loop to train a detection neural network."""
 
-    def __init__(self, config_name):
+    def __init__(self, config_name, rank):
         """
         Args:
             config_name: name of a configuration module to import
@@ -111,6 +121,8 @@ class Trainer:
 
         self.cfg = import_config_by_name(config_name)
         print(self.cfg)
+
+        self.rank = rank
 
         print('Start preparing dataset')
         self.prepare_dataset()
@@ -150,13 +162,14 @@ class Trainer:
             labelmap)
 
         if True:
-            model_dp = torch.nn.DataParallel(model)
+            from torch.nn.parallel import DistributedDataParallel
+            model_dp = DistributedDataParallel(model)
             cudnn.benchmark = True
         else:
             model_dp = model
 
         if torch.cuda.is_available():
-            model_dp.cuda()
+            model_dp.cuda(self.rank)
 
         self.model = model
         self.model_dp = model_dp
@@ -225,12 +238,11 @@ class Trainer:
 
         NameListDataset.train_val_split(image_list, self.cfg.train_val_split_dir)
 
-    @staticmethod
-    def wrap_sample_with_variable(input, target, **kwargs):
+    def wrap_sample_with_variable(self, input, target, **kwargs):
         """Wrap tensor with Variable and push to cuda."""
         if torch.cuda.is_available():
-            input = input.cuda(non_blocking=True)
-            target = [t.cuda(non_blocking=True) for t in target]
+            input = input.cuda(self.rank, non_blocking=True)
+            target = [t.cuda(self.rank, non_blocking=True) for t in target]
         return input, target
 
     def train_epoch(self):
@@ -512,7 +524,7 @@ class Trainer:
     def export(self):
         resolution_hw = default_input_traits()["resolution"]
         example_input = torch.rand((1, 3, *resolution_hw))
-        example_input_cuda = example_input.cuda()
+        example_input_cuda = example_input.cuda(self.rank)
         traced_model = torch.jit.trace(self.model, (example_input_cuda,))
         print(traced_model)
 
@@ -520,7 +532,7 @@ class Trainer:
         path = os.path.join(self.run_dir, self.cfg.run_name+'.onnx')
         torch.onnx.export(self.model, (example_input,), path, verbose=False)
         if torch.cuda.is_available():
-            self.model.cuda()
+            self.model.cuda(self.rank)
         # assert False
         pass
 
@@ -553,7 +565,7 @@ class Trainer:
         pass
 
 
-def main():
+def main(rank, world_size):
     """Entry point."""
 
     default_config = 'resnet34_pretrained'
@@ -567,7 +579,12 @@ def main():
     parser.add_argument("--checkpoint_path", default=None)
     args = parser.parse_args()
 
-    trainer = Trainer(args.config)
+    init_process(rank, world_size)
+    print(
+            f"Rank {rank + 1}/{world_size} process initialized.\n"
+        )
+
+    trainer = Trainer(args.config, rank)
 
     if args.validate:
 
@@ -589,8 +606,11 @@ def main():
 
 
 if __name__ == "__main__":
+    WORLD_SIZE = torch.cuda.device_count()
+
     try:
-        main()
+        mp.spawn(main, args=(WORLD_SIZE,), nprocs=WORLD_SIZE, join=True)
+        #main()
     except KeyboardInterrupt:
         print('Interrupted')
         try:
